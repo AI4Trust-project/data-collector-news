@@ -6,10 +6,13 @@ import urllib.robotparser
 
 from kafka import KafkaProducer
 
+USER_AGENT = "Ai4Trust"
+
 
 def init_context(context):
     producer = KafkaProducer(
         bootstrap_servers=[os.environ.get("KAFKA_BROKER")],
+        key_serializer=lambda x: x.encode("utf-8"),
         value_serializer=lambda x: json.dumps(x).encode("utf-8"),
     )
 
@@ -22,11 +25,20 @@ def robots_checker(url, user_agent="*", timeout=5):
     rp = urllib.robotparser.RobotFileParser()
 
     try:
-        with urllib.request.urlopen(robots_url, timeout=timeout) as response:
+        req = urllib.request.Request(
+            robots_url, data=None, headers={"User-Agent": USER_AGENT}
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             robots_txt = response.read().decode("utf-8")
             rp.parse(robots_txt.splitlines())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            # not found, implicit allow
+            return True
+        print(f"HTTP Error: {e.code} {e.reason}")
+        return False
     except Exception as e:
-        print(f"Error checking robots.txt: {e}")
+        print(f"{url} | Error checking robots.txt: {e}")
         return False
 
     return rp.can_fetch(user_agent, url)
@@ -39,11 +51,16 @@ def check_article(fetched_article):
 
 
 def handler(context, event):
-
     producer = context.producer
 
     fetched_article = json.loads(event.body.decode("utf-8"))
+    context.logger.debug("Check url " + fetched_article["url"])
 
     if check_article(fetched_article):
+        msg_key = fetched_article["search_id"] + "|" + fetched_article["id"]
 
-        producer.send("news.approved_articles", value=json.loads(json.dumps(fetched_article)))
+        producer.send(
+            "news.approved_articles",
+            key=msg_key,
+            value=json.loads(json.dumps(fetched_article)),
+        )

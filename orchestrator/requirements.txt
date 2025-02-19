@@ -1,1 +1,2 @@
-pip install kafka-python psycopg2[binary]
+kafka-python
+psycopg2[binary]

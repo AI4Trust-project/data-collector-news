@@ -1,6 +1,6 @@
 # News Articles Collection
 
-![alt text](/imgs/news_diagram.png "Diagram of the News Collection")
+![alt text](news_diagram.png "Diagram of the News Collection")
 
 ## Pipeline Description
 

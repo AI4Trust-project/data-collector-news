@@ -1,1 +1,1 @@
-pip install kafka-python
+kafka-python

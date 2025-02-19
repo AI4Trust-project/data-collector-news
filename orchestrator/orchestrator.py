@@ -5,28 +5,26 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg2
 from kafka import KafkaProducer
+import time
+
+DBNAME = os.environ.get("DATABASE_NAME")
+USER = os.environ.get("DATABASE_USER")
+PASSWORD = os.environ.get("DATABASE_PWD")
+HOST = os.environ.get("DATABASE_HOST")
+DELAY = 15
 
 
 def init_context(context):
     producer = KafkaProducer(
         bootstrap_servers=[os.environ.get("KAFKA_BROKER")],
+        key_serializer=lambda x: x.encode("utf-8"),
         value_serializer=lambda x: json.dumps(x).encode("utf-8"),
     )
 
-    dbname = os.environ.get("DATABASE_NAME")
-    user = os.environ.get("DATABASE_USER")
-    password = os.environ.get("DATABASE_PWD")
-    host = os.environ.get("DATABASE_HOST")
-
-    conn = psycopg2.connect(
-        dbname=dbname, user=user, password=password, host=host
-    )
-
     setattr(context, "producer", producer)
-    setattr(context, "conn", conn)
 
 
-def get_keywords(conn):
+def get_keywords(conn, kid):
     """Get keywords from database"""
     cur = None
     data = []
@@ -35,10 +33,11 @@ def get_keywords(conn):
 
         cur = conn.cursor()
 
-        query = "SELECT keyword_id, keyword, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords"
+        query = "SELECT keyword_id, keyword, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords ORDER BY keyword_id"
+        if kid and kid > 0:
+            query = f"SELECT keyword_id, keyword, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords WHERE keyword_id='{kid}'"
 
         cur.execute(query)
-
         row = cur.fetchall()
 
         if row:
@@ -79,13 +78,34 @@ def get_keywords(conn):
 def handler(context, event):
     """Generate Kafka messages based on the configuration and send them."""
     producer = context.producer
-    configs = get_keywords(context.conn)
+
+    body = event.body.decode("utf-8")
+    conn = psycopg2.connect(dbname=DBNAME, user=USER, password=PASSWORD, host=HOST)
+
+    end_date = datetime.now()
+    start_date = None
+    kid = None
+
+    if body:
+        parameters = json.loads(body)
+        if "end_date" in parameters:
+            end_date = datetime.strptime(parameters["end_date"], "%Y-%m-%d")
+        if "start_date" in parameters:
+            start_date = datetime.strptime(parameters["start_date"], "%Y-%m-%d")
+        if "keyword_id" in parameters:
+            kid = int(parameters["keyword_id"])
+
+    if not start_date:
+        start_date = end_date - timedelta(days=1)  # 1 day ago
+
+    context.logger.info(f"Run searches for {start_date} -> {end_date}")
+
+    configs = get_keywords(conn, kid)
 
     for config in configs:
-
         keyword_id = config.get("keyword_id", None)
         keyword = config.get("keyword", None)
-        num_records = config.get("num_records", 0)
+        num_records = config.get("num_records", 250)
         country = config.get("country", None)
         data_owner = config.get("data_owner", None)
         # optional
@@ -96,9 +116,6 @@ def handler(context, event):
         repeat = config.get("repeat", None)
 
         # start_date = datetime.now() - timedelta(days=365 * 5) # 5 years ago
-
-        end_date = datetime.now()
-        start_date = datetime.now() - timedelta(days=2)  # 2 days ago
 
         start_date_str = start_date.strftime("%Y-%m-%d")
         end_date_str = end_date.strftime("%Y-%m-%d")
@@ -122,4 +139,22 @@ def handler(context, event):
             "repeat": repeat,
         }
 
-        producer.send("news.search_parameters", value=json.loads(json.dumps(message)))
+        msg_key = message["id"]
+
+        context.logger.debug(f"Run search for {country}:{keyword}")
+        producer.send(
+            "news.search_parameters", key=msg_key, value=json.loads(json.dumps(message))
+        )
+
+        # wait to stagger requests
+        time.sleep(DELAY)
+
+    # close connection
+    conn.close()
+
+    return context.Response(
+        body=f"Run searches for {start_date} -> {end_date}",
+        headers={},
+        content_type="text/plain",
+        status_code=200,
+    )

@@ -10,6 +10,7 @@ from kafka import KafkaProducer
 def init_context(context):
     producer = KafkaProducer(
         bootstrap_servers=[os.environ.get("KAFKA_BROKER")],
+        key_serializer=lambda x: x.encode("utf-8"),
         value_serializer=lambda x: json.dumps(x).encode("utf-8"),
     )
 
@@ -48,45 +49,52 @@ def handler(context, event):
     producer = context.producer
 
     try:
-
         search_parameters = json.loads(event.body.decode("utf-8"))
-
+        search_id = search_parameters["id"]
+        context.logger.info(f"Fetch articles for search {search_id}")
         fetched_articles = fetch_articles(search_parameters)
+        search_results = 0
 
         if fetched_articles is not None:
-            search_parameters["n_results"] = len(fetched_articles)
-        else:
-            search_parameters["n_results"] = 0
+            search_results = len(fetched_articles)
 
+        context.logger.debug(f"Fetched articles for search: {search_results}")
 
-        for _, row in fetched_articles.iterrows():
-            try:
-                article_message = row.to_dict()
-                article_message["search_date"] = datetime.now().strftime("%Y-%m-%d")
+        if fetched_articles is not None:
+            for _, row in fetched_articles.iterrows():
+                try:
+                    article_message = row.to_dict()
+                    article_message["search_date"] = datetime.now().strftime("%Y-%m-%d")
 
-                # add additional info
-                article_message["data_owner"] = search_parameters.get(
-                    "data_owner", "FBK-NEWS"
-                )
-                article_message["created_at"] = search_parameters.get(
-                    "created_at",
-                    datetime.now()
-                    .astimezone(timezone.utc)
-                    .strftime("%Y-%m-%dT%H:%M:%SZ"),
-                )
-                article_message["search_id"] = search_parameters.get(
-                    "id", "None"
-                )
-                article_message["keyword_id"] = search_parameters.get("keyword_id", "None")
-                article_message["keyword"] = search_parameters.get("keyword", "None")
-                article_message["id"] = str(uuid.uuid4())
+                    # add additional info
+                    article_message["data_owner"] = search_parameters.get(
+                        "data_owner", "FBK-NEWS"
+                    )
+                    article_message["created_at"] = search_parameters.get(
+                        "created_at",
+                        datetime.now()
+                        .astimezone(timezone.utc)
+                        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    )
+                    article_message["search_id"] = search_parameters.get("id", "None")
+                    article_message["keyword_id"] = search_parameters.get(
+                        "keyword_id", "None"
+                    )
+                    article_message["keyword"] = search_parameters.get(
+                        "keyword", "None"
+                    )
+                    article_message["id"] = str(uuid.uuid4())
 
-                article_json = json.loads(json.dumps(article_message))
+                    msg_key = article_message["search_id"] + "|" + article_message["id"]
 
-                producer.send("news.fetched_articles", value=article_json)
-            except Exception as e:
-                print(e)
-                continue
+                    article_json = json.loads(json.dumps(article_message))
+
+                    producer.send(
+                        "news.fetched_articles", key=msg_key, value=article_json
+                    )
+                except Exception as e:
+                    print(e)
+                    continue
 
     except Exception as e:
         print(f"Error in fetching process: {e}")
