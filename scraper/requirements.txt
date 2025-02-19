@@ -1,0 +1,1 @@
+pip install kafka-python nltk requests newspaper3k pillow lxml[html_clean] lxml_html_clean
