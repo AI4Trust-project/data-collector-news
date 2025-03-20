@@ -68,7 +68,7 @@ def handler(context, event):
 
                     # add additional info
                     article_message["data_owner"] = search_parameters.get(
-                        "data_owner", "FBK-NEWS"
+                        "data_owner", "FBK"
                     )
                     article_message["created_at"] = search_parameters.get(
                         "created_at",
@@ -76,13 +76,12 @@ def handler(context, event):
                         .astimezone(timezone.utc)
                         .strftime("%Y-%m-%dT%H:%M:%SZ"),
                     )
-                    article_message["search_id"] = search_parameters.get("id", "None")
+                    article_message["search_id"] = search_parameters.get("id", None)
                     article_message["keyword_id"] = search_parameters.get(
-                        "keyword_id", "None"
+                        "keyword_id", None
                     )
-                    article_message["keyword"] = search_parameters.get(
-                        "keyword", "None"
-                    )
+                    article_message["keyword"] = search_parameters.get("keyword", None)
+                    article_message["topic"] = search_parameters.get("topic", None)
                     article_message["id"] = str(uuid.uuid4())
 
                     msg_key = article_message["search_id"] + "|" + article_message["id"]

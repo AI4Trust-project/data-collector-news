@@ -8,10 +8,21 @@ import urllib.request
 API_KEY = os.environ.get("API_KEY")
 API_URL = os.environ.get("API_URL")
 
+LANGUAGE_CODES = {
+    "english": "EN",
+    "french": "FR",
+    "spanish": "ES",
+    "german": "DE",
+    "greek": "EL",
+    "italian": "IT",
+    "polish": "PL",
+    "romanian": "RO",
+}
+
 
 def filter(article):
-    # static filter
-    return str(article.get("keyword_id")) == "1"
+    # filter by supported languages
+    return article.get("language", "None").lower() in LANGUAGE_CODES
 
 
 def handler(context, event):
@@ -33,18 +44,24 @@ def handler(context, event):
     # filter content
     keys = [
         "data_owner",
-        "language",
         "url",
         "title",
         "text",
         "image_url",
         "keyword",
         "keyword_id",
+        "topic",
     ]
+
+    # derive language
+    language = LANGUAGE_CODES.get(
+        article.get("language", "None").lower(), article.get("language", None)
+    )
 
     message = (
         {"id": id}
         | {k: article.get(k) for k in keys}
+        | {"language": language}
         | {"publish_time": article["publish_date"]}
     )
 

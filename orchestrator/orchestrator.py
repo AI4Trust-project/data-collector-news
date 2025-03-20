@@ -33,9 +33,9 @@ def get_keywords(conn, kid):
 
         cur = conn.cursor()
 
-        query = "SELECT keyword_id, keyword, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords ORDER BY keyword_id"
+        query = "SELECT keyword_id, keyword, topic, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords ORDER BY keyword_id"
         if kid and kid > 0:
-            query = f"SELECT keyword_id, keyword, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords WHERE keyword_id='{kid}'"
+            query = f"SELECT keyword_id, keyword, topic, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords WHERE keyword_id='{kid}'"
 
         cur.execute(query)
         row = cur.fetchall()
@@ -44,6 +44,7 @@ def get_keywords(conn, kid):
             for (
                 keyword_id,
                 keyword,
+                topic,
                 num_records,
                 country,
                 data_owner,
@@ -56,6 +57,7 @@ def get_keywords(conn, kid):
                 config = {
                     "keyword_id": keyword_id,
                     "keyword": keyword,
+                    "topic": topic,
                     "num_records": num_records,
                     "country": country,
                     "data_owner": data_owner,
@@ -105,6 +107,7 @@ def handler(context, event):
     for config in configs:
         keyword_id = config.get("keyword_id", None)
         keyword = config.get("keyword", None)
+        topic = config.get("topic", None)
         num_records = config.get("num_records", 250)
         country = config.get("country", None)
         data_owner = config.get("data_owner", None)
@@ -128,6 +131,7 @@ def handler(context, event):
             "id": str(uuid.uuid4()),
             "keyword_id": keyword_id,
             "keyword": keyword,
+            "topic": topic,
             "num_records": num_records,
             "start_date": start_date_str,
             "end_date": end_date_str,

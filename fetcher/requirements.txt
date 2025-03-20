@@ -1,2 +1,2 @@
 kafka-python
-gdeltdoc
+gdeltdoc=1.5.0

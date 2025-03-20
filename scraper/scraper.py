@@ -142,6 +142,7 @@ def handler(context, event):
             "search_id",
             "keyword_id",
             "keyword",
+            "topic",
             "id",
         ]
 

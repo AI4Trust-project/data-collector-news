@@ -5,6 +5,7 @@ CREATE TABLE news.search_keywords(
     num_records INT,
     country VARCHAR(10),
     data_owner VARCHAR(255),
+    topic VARCHAR(255),
     domain VARCHAR(255),
     domain_exact VARCHAR(255),
     theme VARCHAR(255),
