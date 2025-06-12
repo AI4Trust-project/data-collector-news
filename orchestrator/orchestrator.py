@@ -33,7 +33,7 @@ def get_keywords(conn, kid):
 
         cur = conn.cursor()
 
-        query = "SELECT keyword_id, keyword, topic, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords ORDER BY keyword_id"
+        query = "SELECT keyword_id, keyword, topic, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords WHERE keyword_id >= 1000 ORDER BY keyword_id"
         if kid and kid > 0:
             query = f"SELECT keyword_id, keyword, topic, num_records, country, data_owner, domain, domain_exact, theme, near, repeat_ FROM news.search_keywords WHERE keyword_id='{kid}'"
 
@@ -55,7 +55,7 @@ def get_keywords(conn, kid):
                 repeat_,
             ) in row:
                 config = {
-                    "keyword_id": keyword_id,
+                    "keyword_id": str(keyword_id),
                     "keyword": keyword,
                     "topic": topic,
                     "num_records": num_records,

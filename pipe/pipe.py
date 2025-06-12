@@ -4,6 +4,10 @@ import os
 import urllib.parse
 import urllib.request
 
+import datetime
+from datetime import datetime as dt
+
+from kafka import KafkaProducer
 
 API_KEY = os.environ.get("API_KEY")
 API_URL = os.environ.get("API_URL")
@@ -18,6 +22,16 @@ LANGUAGE_CODES = {
     "polish": "PL",
     "romanian": "RO",
 }
+
+
+def init_context(context):
+
+    producer = KafkaProducer(
+        bootstrap_servers=[os.environ.get("KAFKA_BROKER")],
+        key_serializer=lambda x: x.encode("utf-8"),
+        value_serializer=lambda x: json.dumps(x).encode("utf-8"),
+    )
+    setattr(context, "producer", producer)
 
 
 def filter(article):
@@ -58,16 +72,31 @@ def handler(context, event):
         article.get("language", "None").lower(), article.get("language", None)
     )
 
+    # parse and convert publish time
+    publish_time = article.get("publish_date", None)
+    if publish_time:
+        try:
+            publish_time = (
+                dt.fromisoformat(publish_time)
+                .astimezone(datetime.timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+        except Exception as e:
+            context.logger.error(f"Error parsing publish time: {e}")
+            publish_time = None
+
     message = (
         {"id": id}
         | {k: article.get(k) for k in keys}
         | {"language": language}
-        | {"publish_time": article["publish_date"]}
+        | {"publish_time": publish_time}
     )
 
     context.logger.debug("Send article url " + article["url"])
 
-    req = urllib.request.Request(API_URL, data=json.dumps(message).encode("utf-8"))
+    data = json.dumps(message)
+    req = urllib.request.Request(API_URL, data=data.encode("utf-8"))
     req.add_header("Content-Type", "application/json")
     req.add_header("X-API-KEY", API_KEY)
     req.get_method = lambda: "POST"
@@ -75,6 +104,17 @@ def handler(context, event):
     try:
         with urllib.request.urlopen(req) as f:
             response = f.read().decode("utf-8")
+
+            # send to kafka
+            value = json.loads(data) | {
+                "news_id": article["id"],
+                "search_id": article["search_id"],
+            }
+            context.producer.send(
+                "pipe.news",
+                key=id,
+                value=value,
+            )
 
             return context.Response(
                 body=f"Response from api {response}",
