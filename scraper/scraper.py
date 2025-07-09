@@ -14,8 +14,68 @@ from textwrap import wrap
 import boto3
 import botocore
 
+import json
+from tink import JsonKeysetReader
+from tink import cleartext_keyset_handle
+import tink_fpe
+
+
 S3_BUCKET = os.environ.get("S3_BUCKET")
+KEY = os.environ.get("ANONIMIZE_KEY")
+
 USER_AGENT = "libcurl"
+
+
+tink_fpe.register()
+
+keyset_json = json.dumps({
+    "primaryKeyId": 0,
+    "key": [
+        {
+            "keyData": {
+                "typeUrl": "type.googleapis.com/ssb.crypto.tink.FpeFfxKey",
+                "value": KEY,
+                "keyMaterialType": "SYMMETRIC"
+            },
+            "status": "ENABLED",
+            "keyId": 0,
+            "outputPrefixType": "RAW"
+        }
+    ]
+})
+
+keyset_handle = cleartext_keyset_handle.read(JsonKeysetReader(keyset_json))
+fpe = keyset_handle.primitive(tink_fpe.Fpe)
+
+
+def base64_encode(string):
+    encoded = base64.urlsafe_b64encode(string).decode('utf-8')
+    return encoded.rstrip("=")
+
+
+def base64_decode(string):
+    padding = 4 - (len(string) % 4)
+    string = string + ("=" * padding)
+    return base64.urlsafe_b64decode(string)
+
+
+def anonymize(input:str | None):
+    if not input:
+        return None
+    
+    #base64 + FPE
+    bv = base64_encode(input.encode('utf-8'))
+    cv = fpe.encrypt(bv.encode('utf-8'))
+    return cv.decode('utf-8')
+
+
+def deanonymize(input:str | None):
+    if not input:
+        return None
+    
+    #base64 + FPE
+    return base64_decode(fpe.decrypt(input.encode('utf-8')).decode('utf-8')).decode('utf-8')
+
 
 
 def init_context(context):
@@ -101,7 +161,7 @@ def newspaper3k_scraper(url):
         # article.nlp()
         return {
             "title": article.title,
-            "authors": article.authors,
+            "authors": [anonymize(author) for author in article.authors] if article.authors else [],
             "publish_date": (
                 article.publish_date.isoformat() if article.publish_date else None
             ),
