@@ -110,6 +110,7 @@ def newspaper3k_scraper(url):
             "keywords": article.keywords,
             "source_url": article.source_url,
             "image_url": article.top_image,
+            "video_url": article.movies[0] if article.movies else None,
         }
     except Exception as e:
         print(f"Error scraping article: {e}")
@@ -131,6 +132,13 @@ def handler(context, event):
             img_path, img_hash = fetch_image(scraped_article["image_url"], context.s3c)
             scraped_article["image_hash"] = img_hash
             scraped_article["image_path"] = img_path
+
+        # optional video
+        if scraped_article["video_url"]:
+            video_url = scraped_article["video_url"]
+            if not video_url.startswith("https://") and not video_url.startswith("http://") and scraped_article["source_url"]:
+                video_url = scraped_article["source_url"] + video_url
+                scraped_article["video_url"] = video_url
 
         keys = [
             "url",

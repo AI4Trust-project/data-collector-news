@@ -56,20 +56,16 @@ def handler(context, event):
     id = article["search_id"] + "|" + article["id"]
 
     # filter content
-    keys = [
-        "data_owner",
-        "url",
-        "title",
-        "text",
-        "image_url",
-        "keyword",
-        "keyword_id",
-        "topic",
-    ]
+    keys = ["data_owner", "url", "title", "text", "image_url", "keyword", "keyword_id"]
 
     # derive language
     language = LANGUAGE_CODES.get(
         article.get("language", "None").lower(), article.get("language", None)
+    )
+
+    # enum-like topic
+    topic = (
+        article.get("topic").upper().replace(" ", "_") if article.get("topic") else None
     )
 
     # parse and convert publish time
@@ -90,6 +86,7 @@ def handler(context, event):
         {"id": id}
         | {k: article.get(k) for k in keys}
         | {"language": language}
+        | {"topic": topic}
         | {"publish_time": publish_time}
     )
 
