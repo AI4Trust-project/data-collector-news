@@ -56,7 +56,16 @@ def handler(context, event):
     id = article["search_id"] + "|" + article["id"]
 
     # filter content
-    keys = ["data_owner", "url", "title", "text", "image_url", "keyword", "keyword_id"]
+    keys = [
+        "data_owner",
+        "url",
+        "title",
+        "text",
+        "image_url",
+        "video_url",
+        "keyword",
+        "keyword_id",
+    ]
 
     # derive language
     language = LANGUAGE_CODES.get(
